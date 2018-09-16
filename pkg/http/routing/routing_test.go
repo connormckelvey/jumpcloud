@@ -29,11 +29,11 @@ func TestPathHandler(t *testing.T) {
 		method string
 		status int
 	}{
-		{method: http.MethodGet, status: http.StatusOK},
-		{method: http.MethodPost, status: http.StatusOK},
-		{method: http.MethodPut, status: http.StatusMethodNotAllowed},
-		{method: http.MethodPatch, status: http.StatusMethodNotAllowed},
-		{method: http.MethodDelete, status: http.StatusMethodNotAllowed},
+		{http.MethodGet, http.StatusOK},
+		{http.MethodPost, http.StatusOK},
+		{http.MethodPut, http.StatusMethodNotAllowed},
+		{http.MethodPatch, http.StatusMethodNotAllowed},
+		{http.MethodDelete, http.StatusMethodNotAllowed},
 	}
 
 	for _, test := range tests {
