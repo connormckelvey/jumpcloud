@@ -13,6 +13,12 @@ type sha512StringHasher struct {
 	hash.Hash
 }
 
+func HashAndBase64Encode(str string) string {
+	hasher := New()
+	hasher.WriteString(str)
+	return hasher.String()
+}
+
 // New returns a new stringhasher.StringHasher computing the SHA-512 checksum.
 func New() sh.StringHasher {
 	return &sha512StringHasher{

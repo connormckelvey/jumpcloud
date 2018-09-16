@@ -3,33 +3,64 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"time"
+
+	mw "github.com/connormckelvey/jumpcloud/pkg/http/middleware"
+	rt "github.com/connormckelvey/jumpcloud/pkg/http/routing"
 )
 
-// Other stuff
-// w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-// 		w.Header().Set("X-Content-Type-Options", "nosniff")
-// GOOD EXAMPLE: https://gist.github.com/enricofoltran/10b4a980cd07cb02836f70a4ab3e72d7
-// https://medium.com/statuscode/how-i-write-go-http-services-after-seven-years-37c208122831
+type reqCtxKey int
 
-var serverPort int
+const (
+	reqTimestamp reqCtxKey = iota
+)
 
-func init() {
-	flag.IntVar(&serverPort, "p", 8080, "specify a port to use")
-	flag.Parse()
-}
+var (
+	bindHost string
+	bindPort int
+)
 
 func main() {
-	app := NewApp()
-	app.Use(RequestLogging(), WithTiming())
+	flag.StringVar(&bindHost, "h", "", "bind server host")
+	flag.IntVar(&bindPort, "p", 8080, "bind server port")
+	flag.Parse()
 
-	app.Post("/hash", app.handleHashPassword())
-	app.Get("/stats", app.handleMetrics())
-	app.All("/", app.handleIndex())
+	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
 
-	address := fmt.Sprintf(":%d", serverPort)
-	server := &http.Server{Addr: address, Handler: app.Handler()}
+	router := http.NewServeMux()
+
+	router.Handle("/hash", &rt.PathHandler{
+		Post: &mw.Handler{
+			Handler: hashPassword(),
+			Middleware: []mw.Middleware{
+				delayResponseWriter(5 * time.Second),
+			},
+		},
+	})
+
+	handler := &mw.Handler{
+		Handler: router,
+		Middleware: []mw.Middleware{
+			requestTimestamp(),
+			logging(logger),
+		},
+	}
+
+	address := fmt.Sprintf("%s:%d", bindHost, bindPort)
+	server := &http.Server{
+		Addr:         address,
+		Handler:      handler,
+		ErrorLog:     logger,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  10 * time.Second,
+	}
+
+	logger.Println("Server is listening at", address)
 	if err := server.ListenAndServe(); err != nil {
-		fmt.Println(err)
+		logger.Fatalf("Could not listen on %s: %v\n", address, err)
 	}
 }
