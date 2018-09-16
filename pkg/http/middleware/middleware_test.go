@@ -40,7 +40,7 @@ func TestHandler(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("Expected status: %d to be %d \n", rr.Code, http.StatusOK)
+		t.Errorf("Expected: %d, got %d \n", http.StatusOK, rr.Code)
 	}
 
 	timeDiff, err := strconv.Atoi(rr.Body.String())
@@ -49,6 +49,6 @@ func TestHandler(t *testing.T) {
 	}
 
 	if timeDiff >= 0 {
-		t.Errorf("Expected timeDiff: %d to be < 0 \n", timeDiff)
+		t.Errorf("Expected < 0, got: %d \n", timeDiff)
 	}
 }
