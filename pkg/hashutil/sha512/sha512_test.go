@@ -1,6 +1,7 @@
 package sha512
 
 import (
+	"encoding/base64"
 	"testing"
 )
 
@@ -16,31 +17,14 @@ var commonTests = []struct {
 
 func TestWriteString(t *testing.T) {
 	for _, test := range commonTests {
-		hasher := New()
+		hasher := NewStringWriter()
 
 		_, err := hasher.WriteString(test.in)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		actual := hasher.String()
-		if actual != test.expected {
-			t.Errorf("Expected: %s, Actual: %s", test.expected, actual)
-		}
-	}
-}
-
-func TestReset(t *testing.T) {
-	hasher := New()
-	for _, test := range commonTests {
-		_, err := hasher.WriteString(test.in)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		actual := hasher.String()
-		hasher.Reset()
-
+		actual := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 		if actual != test.expected {
 			t.Errorf("Expected: %s, Actual: %s", test.expected, actual)
 		}

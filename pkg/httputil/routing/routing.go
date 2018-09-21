@@ -1,6 +1,8 @@
 package routing
 
-import "net/http"
+import (
+	"net/http"
+)
 
 type PathHandler struct {
 	http.Handler
