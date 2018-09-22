@@ -3,31 +3,29 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/connormckelvey/jumpcloud/internal/app/pwhash"
 )
 
+var (
+	port   = flag.String("p", ":8080", "Port to listen on")
+	logger = pwhash.Logger()
+	done   = make(chan bool)
+)
+
+var server = &http.Server{
+	Handler:  pwhash.Handler(),
+	ErrorLog: logger,
+}
+
 func main() {
-	port := flag.String("p", ":8080", "Port to listen on")
 	flag.Parse()
-
-	logger := log.New(os.Stdout, "", log.LstdFlags)
-	app := pwhash.New(logger)
-
-	server := &http.Server{
-		Addr:     *port,
-		Handler:  app.Handler(),
-		ErrorLog: logger,
-	}
-
-	done := make(chan bool)
+	server.Addr = *port
 
 	go func() {
-		app.Wait()
+		pwhash.Wait()
 		defer close(done)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

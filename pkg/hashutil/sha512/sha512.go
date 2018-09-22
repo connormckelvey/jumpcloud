@@ -6,7 +6,8 @@ import (
 	"github.com/connormckelvey/jumpcloud/pkg/hashutil"
 )
 
-// New returns a new hashutil.HashStringWriter computing the SHA-512 checksum.
+// NewStringWriter returns a new hashutil.HashStringWriter for computing SHA-512
+// checksums.
 func NewStringWriter() hashutil.HashStringWriter {
 	return hashutil.NewStringWriter(sha512.New())
 }

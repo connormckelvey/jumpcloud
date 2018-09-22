@@ -3,50 +3,46 @@ package pwhash
 import (
 	"log"
 	"net/http"
+	"os"
 	"sync"
-	"time"
 
 	"github.com/connormckelvey/jumpcloud/pkg/httputil/middleware"
-	"github.com/connormckelvey/jumpcloud/pkg/httputil/routing"
 )
 
-type Application struct {
-	Logger   *log.Logger
-	quitOnce *sync.Once
-	quit     chan bool
+type application struct {
+	logger   *log.Logger
+	handler  http.Handler
+	quitOnce sync.Once
+	quitChan chan bool
 }
 
-func New(logger *log.Logger) *Application {
-	return &Application{
-		Logger:   logger,
-		quitOnce: &sync.Once{},
-		quit:     make(chan bool, 1),
-	}
+var (
+	logger  = log.New(os.Stderr, "", log.LstdFlags)
+	router  = http.DefaultServeMux
+	handler = middleware.New(withLogging(logger)).Wrap(router)
+)
+
+var instance = &application{
+	logger:   logger,
+	handler:  handler,
+	quitOnce: sync.Once{},
+	quitChan: make(chan bool, 1),
 }
 
-func (a *Application) Handler() http.Handler {
-	router := http.NewServeMux()
+func Logger() *log.Logger { return instance.logger }
 
-	hashMiddleware := middleware.New(withFormValidation("password"),
-		withDelay(5*time.Second))
+func Handler() http.Handler { return instance.handler }
 
-	router.Handle("/hash", &routing.PathHandler{
-		Post: hashMiddleware.Wrap(a.handleHash()),
-	})
+func Quit() { instance.quit() }
 
-	router.Handle("/shutdown", &routing.PathHandler{
-		Get: a.handleShutdown(),
-	})
+func Wait() { instance.wait() }
 
-	return middleware.New(withLogging(a.Logger)).Wrap(router)
-}
-
-func (a *Application) Quit() {
+func (a *application) quit() {
 	a.quitOnce.Do(func() {
-		close(a.quit)
+		close(a.quitChan)
 	})
 }
 
-func (a *Application) Wait() {
-	<-a.quit
+func (a *application) wait() {
+	<-a.quitChan
 }

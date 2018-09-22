@@ -5,11 +5,30 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/connormckelvey/jumpcloud/pkg/hashutil/sha512"
+	"github.com/connormckelvey/jumpcloud/pkg/httputil/middleware"
+	"github.com/connormckelvey/jumpcloud/pkg/httputil/routing"
 )
 
-func (a *Application) handleHash() http.Handler {
+var handleHash = &routing.PathHandler{
+	Post: middleware.New(
+		withFormValidation("password"),
+		withDelay(5*time.Second),
+	).Wrap(instance.handleHash()),
+}
+
+var handleShutdown = &routing.PathHandler{
+	Get: instance.handleShutdown(),
+}
+
+func init() {
+	router.Handle("/hash", handleHash)
+	router.Handle("/shutdown", handleShutdown)
+}
+
+func (a *application) handleHash() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pr, pw := io.Pipe()
 
@@ -30,9 +49,9 @@ func (a *Application) handleHash() http.Handler {
 	})
 }
 
-func (a *Application) handleShutdown() http.Handler {
+func (a *application) handleShutdown() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a.Quit()
+		a.quit()
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, http.StatusText(http.StatusOK))
 	})

@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+func init() {
+	*logger = *log.New(ioutil.Discard, "", log.LstdFlags)
+}
+
 func TestApplicationHandler(t *testing.T) {
 	tests := []struct {
 		inMethod             string
@@ -28,8 +32,7 @@ func TestApplicationHandler(t *testing.T) {
 		{http.MethodPost, "/hash", url.Values{"password": []string{"angryMonkey"}}, 200, "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q==", 5},
 	}
 
-	app := New(log.New(ioutil.Discard, "", log.LstdFlags))
-	server := httptest.NewServer(app.Handler())
+	server := httptest.NewServer(Handler())
 
 	for _, test := range tests {
 		client := server.Client()
@@ -41,21 +44,17 @@ func TestApplicationHandler(t *testing.T) {
 		if test.inMethod == "GET" {
 			res, err = http.Get(server.URL + test.inPath)
 		}
-
 		if test.inMethod == "POST" {
 			res, err = client.PostForm(server.URL+test.inPath, test.inParams)
 		}
-
-		actualResponseTime := time.Now().Sub(startTime) / time.Second
-
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		if res.StatusCode != test.expectedCode {
 			t.Errorf("Expected: %d, got: %d", test.expectedCode, res.StatusCode)
 		}
 
+		actualResponseTime := time.Now().Sub(startTime) / time.Second
 		if actualResponseTime != test.expectedResponseTime {
 			t.Errorf("Expected: %d, got: %d", test.expectedResponseTime, actualResponseTime)
 		}
@@ -65,7 +64,6 @@ func TestApplicationHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		if strings.TrimSpace(string(actualBody)) != test.expectedBody {
 			t.Errorf("Expected: %s, got: %s", test.expectedBody, actualBody)
 		}
@@ -79,9 +77,7 @@ func genRandomPassword() string {
 }
 
 func TestGracefulShutdown(t *testing.T) {
-	app := New(log.New(ioutil.Discard, "", log.LstdFlags))
-	server := httptest.NewServer(app.Handler())
-
+	server := httptest.NewServer(Handler())
 	numRequests := 100
 	wg := &sync.WaitGroup{}
 
@@ -96,7 +92,6 @@ func TestGracefulShutdown(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
 			if res.StatusCode != 200 {
 				t.Errorf("Expected: %d, got: %d", 200, res.StatusCode)
 			}
@@ -105,7 +100,6 @@ func TestGracefulShutdown(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
 			if len(body) != 88 {
 				t.Errorf("Expected: %d, got: %d", 88, len(body))
 			}
@@ -120,12 +114,11 @@ func TestGracefulShutdown(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		if res.StatusCode != 200 {
 			t.Errorf("Expected: %d, got: %d", 200, res.StatusCode)
 		}
 
-		app.Wait()
+		Wait()
 
 		t.Log("Server is shutting down...")
 		server.Close()
