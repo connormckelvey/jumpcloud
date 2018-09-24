@@ -4,50 +4,35 @@ import (
 	"sync"
 )
 
-var defaultStore = NewStore()
-
 type Store struct {
-	data map[uint64]int64
-	mux  sync.RWMutex
+	collectors map[string]*Collector
+	mux        sync.RWMutex
 }
 
 func NewStore() *Store {
-	m := new(Store)
-	m.Reset()
-	return m
-}
-
-func (m *Store) Reset() {
-	m.data = make(map[uint64]int64)
-	m.mux = sync.RWMutex{}
-}
-
-func (m *Store) Put(key uint64, value int64) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	m.data[key] = value
-}
-
-func (m *Store) getUnsafe(key uint64) (int64, bool) {
-	value, exists := m.data[key]
-	if !exists {
-		return 0, false
+	return &Store{
+		collectors: make(map[string]*Collector),
+		mux:        sync.RWMutex{},
 	}
-	return value, true
 }
 
-func (m *Store) Get(key uint64) (int64, bool) {
-	m.mux.RLock()
-	defer m.mux.RUnlock()
-	return m.getUnsafe(key)
+func (s *Store) Register(collector *Collector) {
+	s.collectors[collector.Name] = collector
 }
 
-type UpdaterFunc func(int64) int64
+func (s *Store) Collector(name string) (*Collector, bool) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	c, exists := s.collectors[name]
+	return c, exists
+}
 
-func (m *Store) Update(key uint64, updater UpdaterFunc) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
+var defaultStore = NewStore()
 
-	current, _ := m.getUnsafe(key)
-	m.data[key] = updater(current)
+func Register(collector *Collector) {
+	defaultStore.Register(collector)
+}
+
+func FindCollector(name string) (*Collector, bool) {
+	return defaultStore.Collector(name)
 }

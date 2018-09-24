@@ -33,7 +33,9 @@ func Logger() *log.Logger { return instance.logger }
 
 func Handler() http.Handler { return instance.handler }
 
-func Quit() { instance.quit() }
+func Quit() {
+	instance.quit()
+}
 
 func Wait() { instance.wait() }
 

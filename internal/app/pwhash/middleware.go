@@ -4,22 +4,23 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/connormckelvey/jumpcloud/pkg/httputil/middleware"
+	"github.com/connormckelvey/jumpcloud/pkg/metrics"
 )
 
 type delayedResponseWriter struct {
 	http.ResponseWriter
-	*time.Timer
-	shouldDelay bool
+	timer *time.Timer
+	once  sync.Once
 }
 
 func (d *delayedResponseWriter) Write(p []byte) (n int, err error) {
-	if d.shouldDelay {
-		<-d.Timer.C
-		d.shouldDelay = false
-	}
+	d.once.Do(func() {
+		<-d.timer.C
+	})
 	return d.ResponseWriter.Write(p)
 }
 
@@ -27,9 +28,9 @@ func withDelay(amount time.Duration) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			delayedWriter := &delayedResponseWriter{
-				shouldDelay:    true,
-				Timer:          time.NewTimer(amount),
 				ResponseWriter: w,
+				timer:          time.NewTimer(amount),
+				once:           sync.Once{},
 			}
 			next.ServeHTTP(delayedWriter, r)
 		})
@@ -38,11 +39,11 @@ func withDelay(amount time.Duration) middleware.Middleware {
 
 type responseRecorderWriter struct {
 	http.ResponseWriter
-	Status int
+	status int
 }
 
 func (w *responseRecorderWriter) WriteHeader(code int) {
-	w.Status = code
+	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
@@ -53,7 +54,7 @@ func withLogging(logger *log.Logger) middleware.Middleware {
 				ResponseWriter: w,
 			}
 			next.ServeHTTP(rw, r)
-			logger.Println(r.Method, r.URL.Path, rw.Status, r.RemoteAddr, r.UserAgent())
+			logger.Println(r.Method, r.URL.Path, rw.status, r.RemoteAddr, r.UserAgent())
 		})
 	}
 }
@@ -73,6 +74,38 @@ func withFormValidation(requiredParams ...string) middleware.Middleware {
 				}
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+type metricRecorderWriter struct {
+	http.ResponseWriter
+	*metrics.Collector
+	startTime time.Time
+	once      sync.Once
+}
+
+func (w *metricRecorderWriter) Write(p []byte) (n int, err error) {
+	w.once.Do(func() {
+		elapsedTime := time.Now().Sub(w.startTime)
+		w.Collector.Observe(int64(elapsedTime / time.Microsecond))
+	})
+	return w.ResponseWriter.Write(p)
+}
+
+func withMetrics(name string) middleware.Middleware {
+	collector := metrics.NewCollector(name)
+	metrics.Register(collector)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rw := &metricRecorderWriter{
+				ResponseWriter: w,
+				Collector:      collector,
+				startTime:      time.Now(),
+				once:           sync.Once{},
+			}
+			next.ServeHTTP(rw, r)
 		})
 	}
 }
