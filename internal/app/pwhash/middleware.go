@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/connormckelvey/jumpcloud/pkg/httputil/middleware"
 	"github.com/connormckelvey/jumpcloud/pkg/metrics"
+	"github.com/connormckelvey/jumpcloud/pkg/middleware"
 )
 
 type delayedResponseWriter struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/connormckelvey/jumpcloud/pkg/httputil/middleware"
+	"github.com/connormckelvey/jumpcloud/pkg/middleware"
 )
 
 type application struct {

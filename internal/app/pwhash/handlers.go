@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/connormckelvey/jumpcloud/pkg/httputil/middleware"
-	"github.com/connormckelvey/jumpcloud/pkg/httputil/routing"
 	"github.com/connormckelvey/jumpcloud/pkg/metrics"
+	"github.com/connormckelvey/jumpcloud/pkg/middleware"
+	"github.com/connormckelvey/jumpcloud/pkg/routing"
 )
 
 const (
