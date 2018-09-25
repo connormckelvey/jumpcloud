@@ -2,13 +2,12 @@ package pwhash
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/connormckelvey/jumpcloud/pkg/metrics"
-	"github.com/connormckelvey/jumpcloud/pkg/middleware"
+	"github.com/connormckelvey/jumpcloud/metrics"
+	"github.com/connormckelvey/jumpcloud/middleware"
 )
 
 type delayedResponseWriter struct {
@@ -24,52 +23,53 @@ func (d *delayedResponseWriter) Write(p []byte) (n int, err error) {
 	return d.ResponseWriter.Write(p)
 }
 
-func withDelay(amount time.Duration) middleware.Middleware {
+func (a *Application) withDelay(amount time.Duration) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			delayedWriter := &delayedResponseWriter{
+			rw := &delayedResponseWriter{
 				ResponseWriter: w,
 				timer:          time.NewTimer(amount),
 				once:           sync.Once{},
 			}
-			next.ServeHTTP(delayedWriter, r)
+			next.ServeHTTP(rw, r)
 		})
 	}
 }
 
-type responseRecorderWriter struct {
+type loggingResponseWriter struct {
 	http.ResponseWriter
 	status int
 }
 
-func (w *responseRecorderWriter) WriteHeader(code int) {
+func (w *loggingResponseWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func withLogging(logger *log.Logger) middleware.Middleware {
+func (a *Application) withLogging() middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			rw := &responseRecorderWriter{
+			rw := &loggingResponseWriter{
 				ResponseWriter: w,
 			}
 			next.ServeHTTP(rw, r)
-			logger.Println(r.Method, r.URL.Path, rw.status, r.RemoteAddr, r.UserAgent())
+			a.logger.Println(r.Method, r.URL.Path, rw.status, r.RemoteAddr, r.UserAgent())
 		})
 	}
 }
 
-func withFormValidation(requiredParams ...string) middleware.Middleware {
+func (a *Application) withFormValidation(requiredParams ...string) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			err := r.ParseForm()
 			if err != nil {
-				http.Error(w, err.Error(), 422)
+				http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 				return
 			}
 			for _, param := range requiredParams {
 				if _, ok := r.PostForm[param]; !ok {
-					http.Error(w, fmt.Sprintf("Missing param: %s", param), 422)
+					http.Error(w, fmt.Sprintf("Missing param: %s", param),
+						http.StatusUnprocessableEntity)
 					return
 				}
 			}
@@ -93,10 +93,9 @@ func (w *metricRecorderWriter) Write(p []byte) (n int, err error) {
 	return w.ResponseWriter.Write(p)
 }
 
-func withMetrics(name string) middleware.Middleware {
+func (a *Application) withMetrics(name string) middleware.Middleware {
 	collector := metrics.NewCollector(name)
 	metrics.Register(collector)
-
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rw := &metricRecorderWriter{
@@ -106,6 +105,19 @@ func withMetrics(name string) middleware.Middleware {
 				once:           sync.Once{},
 			}
 			next.ServeHTTP(rw, r)
+		})
+	}
+}
+
+func (a *Application) withShutdown() middleware.Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if a.InShutdown() {
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable),
+					http.StatusServiceUnavailable)
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

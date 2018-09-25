@@ -3,6 +3,7 @@ package pwhash
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -117,6 +118,10 @@ func TestGracefulShutdown(t *testing.T) {
 		if res.StatusCode != 200 {
 			t.Errorf("Expected: %d, got: %d", 200, res.StatusCode)
 		}
+
+		res, _ = http.Get(server.URL + "/stats")
+		bytes, _ := ioutil.ReadAll(res.Body)
+		fmt.Println(string(bytes))
 
 		Wait()
 

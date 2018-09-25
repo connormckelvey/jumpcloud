@@ -3,6 +3,7 @@ package middleware
 import "net/http"
 
 type Middleware func(next http.Handler) http.Handler
+type HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 
 type Chain []Middleware
 
@@ -15,4 +16,8 @@ func (c Chain) Wrap(handler http.Handler) http.Handler {
 		handler = c[i](handler)
 	}
 	return handler
+}
+
+func (c Chain) WrapFunc(handlerFunc HandlerFunc) http.Handler {
+	return c.Wrap(http.HandlerFunc(handlerFunc))
 }
