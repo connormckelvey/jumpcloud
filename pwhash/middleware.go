@@ -1,6 +1,7 @@
 package pwhash
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
@@ -52,7 +53,25 @@ func (a *Application) withLogging() middleware.Middleware {
 				ResponseWriter: w,
 			}
 			next.ServeHTTP(rw, r)
-			a.logger.Println(r.Method, r.URL.Path, rw.status, r.RemoteAddr, r.UserAgent())
+			traceID, ok := r.Context().Value(traceIDKey).(string)
+			if !ok {
+				traceID = "No-Trace-ID"
+			}
+			a.logger.Println(traceID, r.Method, r.URL.Path, rw.status, r.RemoteAddr, r.UserAgent())
+		})
+	}
+}
+
+func (a *Application) withTracing() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			traceID := r.Header.Get("X-Request-ID")
+			if traceID == "" {
+				traceID = fmt.Sprintf("%d", time.Now().UnixNano())
+			}
+			ctx := context.WithValue(r.Context(), traceIDKey, traceID)
+			w.Header().Set("X-Request-Id", traceID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

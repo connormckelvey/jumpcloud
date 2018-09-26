@@ -12,9 +12,17 @@ import (
 	"time"
 )
 
+func newTestLogger() *log.Logger {
+	output := ioutil.Discard
+	if testing.Verbose() {
+		output = os.Stdout
+	}
+	return log.New(output, "", log.LstdFlags)
+}
+
 func TestPasswordHashing(t *testing.T) {
 	app := NewTestApp(t, &Config{
-		Logger: log.New(os.Stdout, "", log.LstdFlags),
+		Logger: newTestLogger(),
 	})
 	defer app.Quit()
 
@@ -45,7 +53,7 @@ func TestPasswordHashing(t *testing.T) {
 
 func TestResponseDelay(t *testing.T) {
 	app := NewTestApp(t, &Config{
-		Logger: log.New(os.Stdout, "", log.LstdFlags),
+		Logger: newTestLogger(),
 	})
 	defer app.Quit()
 
@@ -93,7 +101,7 @@ func TestResponseDelay(t *testing.T) {
 
 func TestGracefulShutdown(t *testing.T) {
 	app := NewTestApp(t, &Config{
-		Logger: log.New(os.Stdout, "", log.LstdFlags),
+		Logger: newTestLogger(),
 	})
 	defer app.Quit()
 
@@ -144,7 +152,7 @@ func TestGracefulShutdown(t *testing.T) {
 
 func TestStats(t *testing.T) {
 	app := NewTestApp(t, &Config{
-		Logger: log.New(os.Stdout, "", log.LstdFlags),
+		Logger: newTestLogger(),
 	})
 	defer app.Quit()
 

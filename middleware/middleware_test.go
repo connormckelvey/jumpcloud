@@ -7,22 +7,6 @@ import (
 	"testing"
 )
 
-var callStack []int
-
-func stackMw(n int) Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			callStack = append(callStack, n)
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-var stackHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	callStack = append(callStack, -1)
-	fmt.Fprintf(w, "%v", callStack)
-})
-
 func TestChain(t *testing.T) {
 	tests := []struct {
 		in       Chain
@@ -52,3 +36,19 @@ func TestChain(t *testing.T) {
 		}
 	}
 }
+
+var callStack []int
+
+func stackMw(n int) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			callStack = append(callStack, n)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+var stackHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	callStack = append(callStack, -1)
+	fmt.Fprintf(w, "%v", callStack)
+})

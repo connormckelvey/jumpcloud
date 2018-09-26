@@ -13,11 +13,6 @@ import (
 	"github.com/connormckelvey/jumpcloud/metrics"
 )
 
-const (
-	hashTimeMetricKey   = "hashTime"
-	hashPasswordFormKey = "password"
-)
-
 type Application struct {
 	config     *Config
 	logger     *log.Logger

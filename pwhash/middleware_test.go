@@ -50,8 +50,8 @@ func TestWithLogging(t *testing.T) {
 		inUserAgent string
 		expected    string
 	}{
-		{"/", "GET", http.StatusOK, "Test/1.0", "GET / 200  Test/1.0\n"},
-		{"/foo", "POST", http.StatusNotFound, "Test/1.0", "POST /foo 404  Test/1.0\n"},
+		{"/", "GET", http.StatusOK, "Test/1.0", "No-Trace-ID GET / 200  Test/1.0\n"},
+		{"/foo", "POST", http.StatusNotFound, "Test/1.0", "No-Trace-ID POST /foo 404  Test/1.0\n"},
 	}
 
 	for _, test := range tests {
@@ -66,7 +66,6 @@ func TestWithLogging(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		req.Header.Set("User-Agent", test.inUserAgent)
 		handler.ServeHTTP(rr, req)
 
@@ -80,6 +79,39 @@ func TestWithLogging(t *testing.T) {
 
 		if actual != test.expected {
 			t.Errorf("Expected: %s, got: %s", test.expected, actual)
+		}
+	}
+}
+
+func TestWithTracing(t *testing.T) {
+	tests := []struct {
+		inTraceID   string
+		inPath      string
+		inMethod    string
+		inStatus    int
+		inUserAgent string
+		expected    string
+	}{
+		{"trace-1", "/", "GET", http.StatusOK, "Test/1.0", "trace-1 GET / 200  Test/1.0\n"},
+		{"trace-2", "/foo", "POST", http.StatusNotFound, "Test/1.0", "trace-2 POST /foo 404  Test/1.0\n"},
+	}
+
+	for _, test := range tests {
+		app := NewApplication(&Config{})
+
+		rr := httptest.NewRecorder()
+		handler := app.withTracing()(statusHandler(test.inStatus))
+
+		req, err := http.NewRequest(test.inMethod, test.inPath, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("X-Request-ID", test.inTraceID)
+		handler.ServeHTTP(rr, req)
+
+		resTraceID := rr.Header().Get("X-Request-ID")
+		if resTraceID != test.inTraceID {
+			t.Errorf("Expected: %s, got: %s", test.expected, resTraceID)
 		}
 	}
 }

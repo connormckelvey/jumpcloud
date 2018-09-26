@@ -30,7 +30,7 @@ func (a *Application) Handler() http.Handler {
 	a.router.Handle("/stats", &routing.MethodHandler{
 		GetFunc: a.handleStats,
 	})
-	return middleware.New(a.withLogging()).Wrap(a.router)
+	return middleware.New(a.withTracing(), a.withLogging()).Wrap(a.router)
 }
 
 func (a *Application) handleHash(w http.ResponseWriter, r *http.Request) {

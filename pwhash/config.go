@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type contextKey int
+
+const (
+	traceIDKey contextKey = iota
+)
+
+const (
+	hashTimeMetricKey   = "hashTime"
+	hashPasswordFormKey = "password"
+	defaultHashDelay    = 5
+	defaultListenPort   = 8080
+)
+
 type Config struct {
 	Logger     *log.Logger
 	ListenPort int
@@ -15,14 +28,14 @@ type Config struct {
 
 func (c *Config) hashDelaySeconds() time.Duration {
 	if c.HashDelay == 0 {
-		c.HashDelay = 5
+		c.HashDelay = defaultHashDelay
 	}
 	return time.Duration(c.HashDelay) * time.Second
 }
 
 func (c *Config) listenAddr() string {
 	if c.ListenPort == 0 {
-		c.ListenPort = 8080
+		c.ListenPort = defaultListenPort
 	}
 	return fmt.Sprintf(":%d", c.ListenPort)
 }
