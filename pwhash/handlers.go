@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
-	"github.com/connormckelvey/jumpcloud/metrics"
 	"github.com/connormckelvey/jumpcloud/middleware"
 	"github.com/connormckelvey/jumpcloud/routing"
 )
@@ -19,7 +19,7 @@ func (a *Application) Handler() http.Handler {
 			a.withShutdown(),
 			a.withFormValidation(hashPasswordFormKey),
 			a.withDelay(a.config.hashDelaySeconds()),
-			a.withMetrics(hashTimeMetricKey),
+			a.withDurationMetrics(hashTimeMetricKey, time.Microsecond),
 		).WrapFunc(a.handleHash),
 	})
 	a.router.Handle("/shutdown", &routing.MethodHandler{
@@ -65,18 +65,13 @@ func (a *Application) handleShutdown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *Application) handleStats(w http.ResponseWriter, r *http.Request) {
-	collector, _ := metrics.FindCollector(hashTimeMetricKey)
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	pr, pw := io.Pipe()
 	go func() {
 		defer pw.Close()
-		json.NewEncoder(w).Encode(map[string]int64{
-			"total":   collector.Count(),
-			"average": collector.Average(),
-		})
+		json.NewEncoder(w).Encode(a.metrics.Get(hashTimeMetricKey))
 	}()
 	io.Copy(w, pr)
 }

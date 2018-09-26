@@ -1,53 +1,82 @@
 package pwhash
 
 import (
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
-	"strings"
+	"os"
 	"sync"
 	"testing"
 	"time"
 )
 
-func init() {
-	*logger = *log.New(ioutil.Discard, "", log.LstdFlags)
+func TestPasswordHashing(t *testing.T) {
+	app := NewTestApp(t, &Config{
+		Logger: log.New(os.Stdout, "", log.LstdFlags),
+	})
+	defer app.Quit()
+
+	tests := []struct {
+		in       string
+		expected string
+	}{
+		{"", "z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPg=="},
+		{"angryMonkey", "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q=="},
+		{"superSecret", "pQaPqt7aC/CThmNsO8xnV+nkLfyJoyqpFzGzmvLivIpjmQXnvJqIULCUOpE+H1f3+p9laadfIkvAxMYZTAxnyQ=="},
+	}
+
+	for _, test := range tests {
+		form := url.Values{"password": []string{test.in}}
+		res, err := app.Client().PostForm("/hash", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.StatusCode != 200 {
+			t.Errorf("Expected: %d, got: %d", 200, res.StatusCode)
+		}
+		body, _ := ioutil.ReadAll(res.Body)
+		if string(body) != test.expected {
+			t.Errorf("Expected: %s, got: %s", test.expected, body)
+		}
+	}
 }
 
-func TestApplicationHandler(t *testing.T) {
+func TestResponseDelay(t *testing.T) {
+	app := NewTestApp(t, &Config{
+		Logger: log.New(os.Stdout, "", log.LstdFlags),
+	})
+	defer app.Quit()
+
+	if app.config.listenAddr() != ":8080" {
+		t.Errorf("Expected: %s, got: %s", ":8080", app.config.listenAddr())
+	}
+
 	tests := []struct {
 		inMethod             string
 		inPath               string
 		inParams             url.Values
 		expectedCode         int
-		expectedBody         string
 		expectedResponseTime time.Duration
 	}{
-		{"GET", "/", nil, 404, "404 page not found", 0},
-		{"GET", "/shutdown", nil, 200, "OK", 0},
-		{http.MethodPost, "/hash", url.Values{"password": []string{"angryMonkey"}}, 200, "ZEHhWB65gUlzdVwtDQArEyx+KVLzp/aTaRaPlBzYRIFj6vjFdqEb0Q5B8zVKCZ0vKbZPZklJz0Fd7su2A+gf7Q==", 5},
+		{"GET", "/", nil, 404, 0},
+		{"POST", "/hash", url.Values{"password": []string{"angryMonkey"}}, 200, 5},
+		{"GET", "/stats", nil, 200, 0},
+		{"GET", "/shutdown", nil, 202, 0},
 	}
 
-	server := httptest.NewServer(Handler())
-
 	for _, test := range tests {
-		client := server.Client()
 		startTime := time.Now()
-
 		var res *http.Response
 		var err error
+		switch test.inMethod {
+		case "GET":
+			res, err = app.Client().Get(test.inPath)
+		case "POST":
+			res, err = app.Client().PostForm(test.inPath, test.inParams)
+		}
 
-		if test.inMethod == "GET" {
-			res, err = http.Get(server.URL + test.inPath)
-		}
-		if test.inMethod == "POST" {
-			res, err = client.PostForm(server.URL+test.inPath, test.inParams)
-		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,40 +88,30 @@ func TestApplicationHandler(t *testing.T) {
 		if actualResponseTime != test.expectedResponseTime {
 			t.Errorf("Expected: %d, got: %d", test.expectedResponseTime, actualResponseTime)
 		}
-
-		actualBody, err := ioutil.ReadAll(res.Body)
-		res.Body.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.TrimSpace(string(actualBody)) != test.expectedBody {
-			t.Errorf("Expected: %s, got: %s", test.expectedBody, actualBody)
-		}
 	}
 }
 
-func genRandomPassword() string {
-	b := make([]byte, 10)
-	rand.Read(b)
-	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(b)
-}
-
 func TestGracefulShutdown(t *testing.T) {
-	server := httptest.NewServer(Handler())
-	numRequests := 100
+	app := NewTestApp(t, &Config{
+		Logger: log.New(os.Stdout, "", log.LstdFlags),
+	})
+	defer app.Quit()
+
+	numRequests := 25
+	lastRequestSent := make(chan bool)
 	wg := &sync.WaitGroup{}
 
 	for i := 0; i < numRequests; i++ {
 		wg.Add(1)
-
 		go func(i int) {
 			defer wg.Done()
 
-			form := url.Values{"password": []string{genRandomPassword()}}
-			res, err := http.PostForm(server.URL+"/hash", form)
+			form := url.Values{"password": []string{"angryMonkey"}}
+			res, err := app.Client().PostForm("/hash", form)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if res.StatusCode != 200 {
 				t.Errorf("Expected: %d, got: %d", 200, res.StatusCode)
 			}
@@ -105,34 +124,62 @@ func TestGracefulShutdown(t *testing.T) {
 				t.Errorf("Expected: %d, got: %d", 88, len(body))
 			}
 		}(i)
+
+		if i == numRequests-1 {
+			close(lastRequestSent)
+		}
 	}
 
-	wg.Add(1)
-	time.AfterFunc(1*time.Second, func() {
-		defer wg.Done()
+	<-lastRequestSent
 
-		res, err := http.Get(server.URL + "/shutdown")
+	time.AfterFunc(1*time.Second, func() {
+		_, err := app.Client().Get("/shutdown")
 		if err != nil {
 			t.Fatal(err)
-		}
-		if res.StatusCode != 200 {
-			t.Errorf("Expected: %d, got: %d", 200, res.StatusCode)
-		}
-
-		res, _ = http.Get(server.URL + "/stats")
-		bytes, _ := ioutil.ReadAll(res.Body)
-		fmt.Println(string(bytes))
-
-		Wait()
-
-		t.Log("Server is shutting down...")
-		server.Close()
-
-		res, err = http.Get(server.URL + "/shutdown")
-		if err == nil {
-			t.Errorf("Expected: %v, got: %v", err, res)
 		}
 	})
 
 	wg.Wait()
+}
+
+func TestStats(t *testing.T) {
+	app := NewTestApp(t, &Config{
+		Logger: log.New(os.Stdout, "", log.LstdFlags),
+	})
+	defer app.Quit()
+
+	numRequests := 25
+	wg := &sync.WaitGroup{}
+
+	for i := 0; i < numRequests; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			form := url.Values{"password": []string{"angryMonkey"}}
+			_, err := app.Client().PostForm("/hash", form)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	res, err := app.Client().Get("/stats")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := ioutil.ReadAll(res.Body)
+	stats := struct {
+		Total   int `json:"total"`
+		Average int `json:"average"`
+	}{}
+	json.Unmarshal(body, &stats)
+
+	if stats.Total != numRequests {
+		t.Errorf("Expected: %d, got: %d", numRequests, stats.Total)
+	}
+	if stats.Average <= 0 {
+		t.Errorf("Expected: > 0 , got: %d", stats.Average)
+	}
 }

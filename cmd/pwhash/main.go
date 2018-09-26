@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/connormckelvey/jumpcloud/pwhash"
 )
@@ -15,5 +16,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-	pwhash.NewApplication(&config).Start()
+	if err := pwhash.NewApplication(&config).Start(); err != nil {
+		os.Exit(1)
+	}
 }

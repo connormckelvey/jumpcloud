@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/connormckelvey/jumpcloud/metrics"
 	"github.com/connormckelvey/jumpcloud/middleware"
 )
 
@@ -80,27 +79,27 @@ func (a *Application) withFormValidation(requiredParams ...string) middleware.Mi
 
 type metricRecorderWriter struct {
 	http.ResponseWriter
-	*metrics.Collector
+	collector *averageDuration
 	startTime time.Time
 	once      sync.Once
 }
 
 func (w *metricRecorderWriter) Write(p []byte) (n int, err error) {
 	w.once.Do(func() {
-		elapsedTime := time.Now().Sub(w.startTime)
-		w.Collector.Observe(int64(elapsedTime / time.Microsecond))
+		w.collector.Observe(time.Now().Sub(w.startTime))
 	})
 	return w.ResponseWriter.Write(p)
 }
 
-func (a *Application) withMetrics(name string) middleware.Middleware {
-	collector := metrics.NewCollector(name)
-	metrics.Register(collector)
+func (a *Application) withDurationMetrics(name string, unit time.Duration) middleware.Middleware {
+	collector := NewAverageDuration(hashTimeMetricKey, time.Microsecond)
+	a.metrics.Register(collector)
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rw := &metricRecorderWriter{
 				ResponseWriter: w,
-				Collector:      collector,
+				collector:      collector,
 				startTime:      time.Now(),
 				once:           sync.Once{},
 			}

@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, http.StatusText(http.StatusOK))
-})
-
 func TestWithDelay(t *testing.T) {
 	tests := []struct {
 		inAmount time.Duration
@@ -26,8 +22,9 @@ func TestWithDelay(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		app := NewApplication(&Config{})
 		rr := httptest.NewRecorder()
-		handler := withDelay(test.inAmount)(okHandler)
+		handler := app.withDelay(test.inAmount)(okHandler)
 
 		req, err := http.NewRequest("GET", "/", nil)
 		if err != nil {
@@ -45,13 +42,6 @@ func TestWithDelay(t *testing.T) {
 	}
 }
 
-func statusHandler(status int) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(status)
-		fmt.Fprintf(w, "%s", http.StatusText(status))
-	})
-}
-
 func TestWithLogging(t *testing.T) {
 	tests := []struct {
 		inPath      string
@@ -67,9 +57,10 @@ func TestWithLogging(t *testing.T) {
 	for _, test := range tests {
 		output := bytes.NewBuffer([]byte{})
 		logger := log.New(output, "", log.LstdFlags)
+		app := NewApplication(&Config{Logger: logger})
 
 		rr := httptest.NewRecorder()
-		handler := withLogging(logger)(statusHandler(test.inStatus))
+		handler := app.withLogging()(statusHandler(test.inStatus))
 
 		req, err := http.NewRequest(test.inMethod, test.inPath, nil)
 		if err != nil {
@@ -107,8 +98,9 @@ func TestWithFormValidation(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		app := NewApplication(&Config{})
 		rr := httptest.NewRecorder()
-		handler := withFormValidation("password")(okHandler)
+		handler := app.withFormValidation("password")(okHandler)
 
 		data := strings.NewReader(fmt.Sprintf("%s=%s", test.inKey, test.inValue))
 		req, err := http.NewRequest(http.MethodPost, "/", data)

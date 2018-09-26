@@ -2,12 +2,15 @@ package pwhash
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
-	"time"
+
+	"github.com/connormckelvey/jumpcloud/metrics"
 )
 
 const (
@@ -21,6 +24,8 @@ type Application struct {
 	router     *http.ServeMux
 	inShutdown uint64
 	waitGroup  *sync.WaitGroup
+	metrics    *metrics.Store
+	errChan    chan error
 }
 
 func NewApplication(config *Config) *Application {
@@ -29,47 +34,65 @@ func NewApplication(config *Config) *Application {
 		logger:    config.logger(),
 		router:    http.NewServeMux(),
 		waitGroup: &sync.WaitGroup{},
+		metrics:   metrics.NewStore(),
+		errChan:   make(chan error),
 	}
 }
 
-func (a *Application) Start() {
+func (a *Application) Start() error {
 	server := &http.Server{
 		Addr:     a.config.listenAddr(),
 		Handler:  a.Handler(),
 		ErrorLog: a.logger,
 	}
 
+	signals := make(chan os.Signal)
+	signal.Notify(signals, os.Interrupt)
+	go func() {
+		<-signals
+		a.Quit()
+	}()
+
 	a.waitGroup.Add(1)
 	go func() {
 		a.logger.Printf("Server is listening at %s\n", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			a.logger.Fatal(err)
+			a.QuitWithError(err)
 		}
 	}()
 
 	a.waitGroup.Wait()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	a.logger.Printf("Server is shutting down...\n")
-	server.SetKeepAlivesEnabled(false)
-
-	if err := server.Shutdown(ctx); err != nil {
-		a.logger.Fatalf("Could not gracefully shutdown the server: %s\n", err)
+	if err := <-a.errChan; err != nil {
+		a.logger.Println(err)
+		return err
 	}
+
+	a.logger.Printf("Server shutting down...\n")
+	server.SetKeepAlivesEnabled(false)
+	if err := server.Shutdown(context.Background()); err != nil {
+		a.logger.Println(err)
+		return err
+	}
+
+	finalMetrics, _ := json.Marshal(a.metrics.Get(hashTimeMetricKey))
+	a.logger.Printf("Stats: %s \n", finalMetrics)
+
 	a.logger.Println("Server stopped gracefully")
+	return nil
 }
 
 func (a *Application) InShutdown() bool {
 	return atomic.LoadUint64(&a.inShutdown) == 1
 }
 
-func (a *Application) Quit() error {
-	if a.InShutdown() {
-		return errors.New("Application is already shutting down")
+func (a *Application) Quit() {
+	a.QuitWithError(nil)
+}
+
+func (a *Application) QuitWithError(err error) {
+	if !a.InShutdown() {
+		atomic.StoreUint64(&a.inShutdown, 1)
+		a.waitGroup.Done()
+		a.errChan <- err
 	}
-	atomic.StoreUint64(&a.inShutdown, 1)
-	a.waitGroup.Done()
-	return nil
 }
