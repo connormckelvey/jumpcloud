@@ -33,7 +33,7 @@ func NewApplication(config *Config) *Application {
 		router:    http.NewServeMux(),
 		waitGroup: &sync.WaitGroup{},
 		metrics:   metrics.NewStore(),
-		errChan:   make(chan error),
+		errChan:   make(chan error, 1),
 	}
 }
 
