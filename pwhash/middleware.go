@@ -23,6 +23,9 @@ func (d *delayedResponseWriter) Write(p []byte) (n int, err error) {
 	return d.ResponseWriter.Write(p)
 }
 
+// withDelay returns a middleware.Middleware for use by any http.Handler
+// Using delayedResponseWriter.Write it waits once for the time.Duration `amount`
+// before proxying Write calls to the embedded http.ResponseWriter.
 func (a *Application) withDelay(amount time.Duration) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +49,10 @@ func (w *loggingResponseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
+// withLogging returns a middleware.Middleware for use by any http.Handler.
+// It calls the `next` handler to capture http.StatusCodes via
+// loggingResponseWriter.Write and finally logs request information using
+// Application.logger
 func (a *Application) withLogging() middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +69,10 @@ func (a *Application) withLogging() middleware.Middleware {
 	}
 }
 
+// withTracing returns a middleware.Middleware for use by any http.Handler.
+// It checks for a `X-Request-ID` used for tracing. If `X-Request-ID` is empty
+// a new TraceID is created and add to the request's Context and as a Header
+// on the response.
 func (a *Application) withTracing() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +87,10 @@ func (a *Application) withTracing() func(http.Handler) http.Handler {
 	}
 }
 
+// withFormValidation returns a middleware.Middleware for use by any http.Handler.
+// It parses the request's PostForm and validates the list of provided `requiredParams`.
+// If any `requiredParam`s are missing, the request is halted and an error is sent
+// to the client.
 func (a *Application) withFormValidation(requiredParams ...string) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +113,7 @@ func (a *Application) withFormValidation(requiredParams ...string) middleware.Mi
 
 type metricRecorderWriter struct {
 	http.ResponseWriter
-	collector *averageDuration
+	collector *AverageDuration
 	startTime time.Time
 	once      sync.Once
 }
@@ -110,6 +125,10 @@ func (w *metricRecorderWriter) Write(p []byte) (n int, err error) {
 	return w.ResponseWriter.Write(p)
 }
 
+// withDurationMetrics returns a middleware.Middleware for use by any http.Handler.
+// It creates and registers a new AverageDuration metrics.Collector using the provided
+// `name` and `unit` of time. It calls AverageDuration.Observe using the time elapsed
+// between the intital request and the first call to metricRecorderWriter.Write.
 func (a *Application) withDurationMetrics(name string, unit time.Duration) middleware.Middleware {
 	collector := NewAverageDuration(hashTimeMetricKey, time.Microsecond)
 	a.metrics.Register(collector)
@@ -127,6 +146,9 @@ func (a *Application) withDurationMetrics(name string, unit time.Duration) middl
 	}
 }
 
+// withDurationMetrics returns a middleware.Middleware for use by any http.Handler.
+// If Application is shutting down it halts the request and returns an error
+// to the client.
 func (a *Application) withShutdown() middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,8 @@ import (
 	"net/http"
 )
 
+// MethodHandler implements http.Handler and provides a declarative way
+// to specify http.Handlers for HTTP Methods.
 type MethodHandler struct {
 	Post     http.Handler
 	PostFunc func(w http.ResponseWriter, r *http.Request)

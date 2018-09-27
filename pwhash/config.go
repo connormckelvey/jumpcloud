@@ -20,6 +20,8 @@ const (
 	defaultListenPort   = 8080
 )
 
+// Config provides configuration fields that are used when setting up and
+// starting Application.
 type Config struct {
 	Logger     *log.Logger
 	ListenPort int

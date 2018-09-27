@@ -13,6 +13,8 @@ import (
 	"github.com/connormckelvey/jumpcloud/routing"
 )
 
+// Handler initializes the http.ServeMux router with handlers and middleware
+// and returns a http.Handler interface for use by http.Server
 func (a *Application) Handler() http.Handler {
 	a.router.Handle("/hash", &routing.MethodHandler{
 		Post: middleware.New(
