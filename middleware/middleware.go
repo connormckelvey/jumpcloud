@@ -7,12 +7,12 @@ import "net/http"
 // the `next` http.Handler in the Chain and returns and http.Handler.
 type Middleware func(next http.Handler) http.Handler
 
-// HandlerFunc is a Type Alias for a function that accepts an http.ResponseWrite
+// HandlerFunc is a Type Alias for a function that accepts an http.ResponseWriter
 // and a *http.Request. Chain.WrapFunc accepts this type and converts it to an
 // http.HandlerFunc.
 type HandlerFunc = func(w http.ResponseWriter, r *http.Request)
 
-// Chain is a type slice of Middleware. It contains Wrap and WrapFunc methods
+// Chain is a slice of Middleware. It contains Wrap and WrapFunc methods
 // which perform the actual composition of the Middleware.
 type Chain []Middleware
 

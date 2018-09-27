@@ -33,7 +33,7 @@ The `/stats` endpoint should be available as long as possible. When a shutdown h
 
 ### Shutdown
 
-`http.Server.Shutdown` with timeout Context isn't good enough. Even though open connections are allowed to complete within the time out, a long running request may get killed when the timeout is reached. Using a `sync.WaitGroup`, the application waits for all `/hash` requests to complete before calling `http.Server.Shutdown`
+`http.Server.Shutdown` with a timeout Context isn't good enough. Even though open connections are allowed to complete within the timeout, a long running request may get killed when the timeout is reached. Using a `sync.WaitGroup`, the application waits for all `/hash` requests to complete before calling `http.Server.Shutdown`
 
 ### External Dependencies
 
@@ -42,11 +42,11 @@ Because this was a coding challenge, I chose to not use any 3rd party libraries.
 ### HTTP Servers == Concurrency 
 
 All requests to an `http.Server` are run in separate goroutines, so ensuring that any
-shared state is accessed in a safe way is important in preventing data races and preventing corruption of that state. Using constructs like `sync.Mutex`, channels, and atomic updates makes concurrent access safe.
+shared state is accessed in a safe way is important in preventing data races and in preventing corruption of that state. Using things like `sync.Mutex`, channels, and atomic updates makes concurrent access safe.
 
 ### Dependency Injection
 
-Throughout the application, handlers and middleware may need access to common things like a metrics store, configuration information and a logger. By defining handlers and middleware as methods on the Application type, injecting a dependency means adding that dependency to Application.
+Throughout the service, handlers and middleware may need access to common things like the metrics store, configuration information, and the logger. By defining handlers and middleware as methods on  `Application`, injecting a dependency means simply adding that dependency to `Application`.
 
 ## What I didn't quite get to
 
@@ -56,4 +56,4 @@ There is no logging in the `/hash` handler, but if this were a production system
 
 ### TLS
 
-Im many cases, a microservice may not need to be the termination point for a TLS connection and a TLS sidecar / reverse proxy will do. But in this application, the main functionality is password hashing, so it would make the most sense to actually start a TLS server to provide end-to-end encryption.
+Im many cases, a microservice may not need to be the termination point for a TLS connection and a TLS sidecar / reverse proxy will do. But in this service, the main functionality is password hashing, so it would make the most sense to actually start a TLS server to provide end-to-end encryption.

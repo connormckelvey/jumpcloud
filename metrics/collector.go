@@ -2,7 +2,7 @@ package metrics
 
 import "sync/atomic"
 
-// Collector is an interface that represents an individual metric
+// Collector is an interface that represents an individual metric.
 // Name() is called during registration with Store.
 type Collector interface {
 	Name() string

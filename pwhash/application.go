@@ -37,10 +37,9 @@ func NewApplication(config *Config) *Application {
 	}
 }
 
-// Start begins the http.Server and waits for the server to stop.
-// It returns an error if the http.Server ListenAndServe method returns
-// an error (such as port already in use), or if Application.QuitError
-// is called with a non-nil error
+// Start begins the http.Server and waits for the server to stop. It returns an
+// error if http.Server.ListenAndServe returns an error (such as port already
+// in use), or if Application.QuitError is called with a non-nil error
 func (a *Application) Start() error {
 	server := &http.Server{
 		Addr:     a.config.listenAddr(),
@@ -77,6 +76,7 @@ func (a *Application) Start() error {
 		return err
 	}
 
+	// Start the actual shutdown of the http.Server
 	a.logger.Printf("Server shutting down...\n")
 	server.SetKeepAlivesEnabled(false)
 	if err := server.Shutdown(context.Background()); err != nil {
@@ -84,6 +84,7 @@ func (a *Application) Start() error {
 		return err
 	}
 
+	// last but not least, log the final state of the hash stats
 	finalMetrics, _ := json.Marshal(a.metrics.Get(hashTimeMetricKey))
 	a.logger.Printf("Stats: %s \n", finalMetrics)
 
@@ -105,7 +106,7 @@ func (a *Application) Quit() {
 }
 
 // QuitWithError starts the shutdown process. Application.waitGroup.Done is called to
-// offset the Application.waitGroup.Add called from Application.Start. The error
+// offset the Application.waitGroup.Add called in Application.Start. The error
 // passed in is received in Application.Start.
 func (a *Application) QuitWithError(err error) {
 	if !a.InShutdown() {
